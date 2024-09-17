@@ -216,57 +216,87 @@ if (!function_exists('flws_get_cloudways_project_info')) {
 // Improve caching strategy
 if (!function_exists('flws_get_cached_or_fetch')) {
     function flws_get_cached_or_fetch($transient_key, $fetch_callback, $cache_time = 24 * HOUR_IN_SECONDS) {
-        if (!FLWS_FORCE_REFRESH) {
-            $cached_data = get_transient($transient_key);
-            if ($cached_data !== false) {
-                return $cached_data;
+        try {
+            if (!FLWS_FORCE_REFRESH) {
+                $cached_data = get_transient($transient_key);
+                if ($cached_data !== false) {
+                    return $cached_data;
+                }
             }
+
+            $data = $fetch_callback();
+
+            if ($data && !isset($data['error'])) {
+                set_transient($transient_key, $data, $cache_time);
+                update_option($transient_key . '_last_updated', time());
+            } elseif (isset($data['error'])) {
+                // Log the error for debugging
+                error_log("FLWS API Error: " . $data['error']);
+                
+                // Return the last known good data if available
+                $last_known_good = get_option($transient_key . '_last_known_good');
+                if ($last_known_good) {
+                    return $last_known_good;
+                }
+            }
+
+            return $data;
+        } catch (Exception $e) {
+            error_log("FLWS Unexpected Error: " . $e->getMessage());
+            return ['error' => 'An unexpected error occurred'];
         }
-
-        $data = $fetch_callback();
-
-        if ($data && !isset($data['error'])) {
-            set_transient($transient_key, $data, $cache_time);
-            update_option($transient_key . '_last_updated', time());
-        }
-
-        return $data;
     }
 }
 
 // Abstract API calls
 if (!function_exists('flws_api_request')) {
     function flws_api_request($url, $method = 'GET', $body = null) {
-        $credentials = flws_get_cloudways_credentials();
-        if (!$credentials) {
-            return ['error' => 'No credentials found'];
+        try {
+            $credentials = flws_get_cloudways_credentials();
+            if (!$credentials) {
+                return ['error' => 'No credentials found'];
+            }
+
+            $access_token = flws_get_cloudways_access_token($credentials);
+            if (!$access_token) {
+                return ['error' => 'Failed to get access token'];
+            }
+
+            $args = [
+                'method' => $method,
+                'headers' => [
+                    'Authorization' => 'Bearer ' . $access_token,
+                    'Accept' => 'application/json'
+                ],
+                'timeout' => 15 // Add a timeout to prevent long-running requests
+            ];
+
+            if ($body) {
+                $args['body'] = $body;
+            }
+
+            $response = wp_remote_request($url, $args);
+
+            if (is_wp_error($response)) {
+                return ['error' => $response->get_error_message()];
+            }
+
+            $status_code = wp_remote_retrieve_response_code($response);
+            if ($status_code !== 200) {
+                return ['error' => "API request failed with status code: $status_code"];
+            }
+
+            $body = wp_remote_retrieve_body($response);
+            $data = json_decode($body, true);
+
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                return ['error' => 'Invalid JSON response'];
+            }
+
+            return $data;
+        } catch (Exception $e) {
+            return ['error' => 'Unexpected error: ' . $e->getMessage()];
         }
-
-        $access_token = flws_get_cloudways_access_token($credentials);
-        if (!$access_token) {
-            return ['error' => 'Failed to get access token'];
-        }
-
-        $args = [
-            'method' => $method,
-            'headers' => [
-                'Authorization' => 'Bearer ' . $access_token,
-                'Accept' => 'application/json'
-            ]
-        ];
-
-        if ($body) {
-            $args['body'] = $body;
-        }
-
-        $response = wp_remote_request($url, $args);
-
-        if (is_wp_error($response)) {
-            return ['error' => $response->get_error_message()];
-        }
-
-        $body = wp_remote_retrieve_body($response);
-        return json_decode($body, true);
     }
 }
 
@@ -275,7 +305,7 @@ if (!function_exists('flws_get_cloudflare_status')) {
     function flws_get_cloudflare_status($server_id, $app_id, $force_refresh = false) {
         $transient_key = "flws_cloudflare_status_{$server_id}_{$app_id}";
         
-        return flws_get_cached_or_fetch(
+        $result = flws_get_cached_or_fetch(
             $transient_key,
             function() use ($server_id, $app_id) {
                 $api_url = add_query_arg(
@@ -286,6 +316,14 @@ if (!function_exists('flws_get_cloudflare_status')) {
             },
             24 * HOUR_IN_SECONDS
         );
+
+        if (isset($result['error'])) {
+            // Handle the error gracefully
+            error_log("FLWS Cloudflare Status Error: " . $result['error']);
+            return ['status' => 'unknown', 'message' => 'Unable to fetch Cloudflare status'];
+        }
+
+        return $result;
     }
 }
 
@@ -456,5 +494,3 @@ if (!function_exists('flws_get_page_views_data')) {
         );
     }
 }
-
-
