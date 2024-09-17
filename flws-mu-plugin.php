@@ -17,7 +17,7 @@ require_once __DIR__ . '/flws/plugin-update-checker/plugin-update-checker.php';
 use YahnisElsts\PluginUpdateChecker\v5\PucFactory;
 
 $myUpdateChecker = PucFactory::buildUpdateChecker(
-    'https://github.com/slarrabee/fatlabllc-flws-hosting-plugin/releases/download/v1.0/flws-mu-plugin.zip', 
+    'https://github.com/slarrabee/fatlabllc-flws-hosting-plugin/releases/download/v.1.0.1/flws-mu-plugin.zip', 
     __FILE__, 
     'flws-mu-plugin'
 );
