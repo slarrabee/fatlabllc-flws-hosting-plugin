@@ -2,7 +2,7 @@
 /*
 Plugin Name: Hosting Support Tools
 Description: Analytics and support plugin designed to help maintain a stable hosting environment.
-Version: 1.0
+Version: 1.0.1
 Author: FLWS
 */
 
