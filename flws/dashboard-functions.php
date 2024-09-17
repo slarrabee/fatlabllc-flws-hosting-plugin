@@ -15,7 +15,7 @@ if (!defined('FLWS_FORCE_REFRESH')) {
 
 // Add a new constant for testing domain
 if (!defined('FLWS_TEST_DOMAIN')) {
-    define('FLWS_TEST_DOMAIN', 'fatlabwebsupport.com'); // Set to empty string to disable, or 'fatlabwebsupport.com' to test
+    define('FLWS_TEST_DOMAIN', ''); // Set to empty string to disable, or 'fatlabwebsupport.com' to test
 }
 
 // Wrap all functions in a check to ensure they're only defined once
